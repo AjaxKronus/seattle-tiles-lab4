@@ -2,264 +2,199 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Lab 4 – Map Design and Tile Generation</title>
+  <title>Lab 4 – Map Design and Tile Generation (UW/Seattle)</title>
   <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
-
-  <!-- Mapbox GL JS CSS -->
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.18.1/mapbox-gl.css" rel="stylesheet" />
-
-  <!-- Mapbox GL JS -->
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.18.1/mapbox-gl.js"></script>
-
   <style>
-    body {
-      margin: 0;
-      padding: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-
-    /* Full screen map */
-    #map {
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      width: 100%;
-    }
-
-    /* Title and description overlay */
+    body { margin: 0; padding: 0; font-family: system-ui, sans-serif; }
+    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
     #title-bar {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      z-index: 2;
-      background: rgba(255, 255, 255, 0.9);
-      padding: 8px 12px;
-      border-radius: 4px;
-      font-size: 13px;
-      max-width: 320px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+      position: absolute; top: 10px; left: 10px; z-index: 2;
+      background: rgba(255,255,255,0.95); padding: 10px; border-radius: 6px;
+      max-width: 300px; box-shadow: 0 2px 6px rgba(0,0,0,0.2);
     }
-
-    #title-bar h1 {
-      margin: 0 0 4px 0;
-      font-size: 15px;
-    }
-
-    #title-bar p {
-      margin: 0;
-      font-size: 12px;
-      line-height: 1.4;
-    }
-
-    /* Layer switcher */
+    #title-bar h1 { margin: 0 0 6px 0; font-size: 16px; }
+    #title-bar p { margin: 0; font-size: 13px; line-height: 1.4; }
     #layer-menu {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      z-index: 2;
-      background: rgba(255, 255, 255, 0.9);
-      padding: 8px 10px;
-      border-radius: 4px;
-      font-size: 12px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+      position: absolute; top: 10px; right: 10px; z-index: 2;
+      background: rgba(255,255,255,0.95); padding: 10px; border-radius: 6px;
+      font-size: 13px; box-shadow: 0 2px 6px rgba(0,0,0,0.2);
     }
-
-    #layer-menu h2 {
-      margin: 0 0 6px 0;
-      font-size: 13px;
+    #layer-menu label { display: block; cursor: pointer; margin-bottom: 6px; }
+    /* Info panel for hover/click */
+    #info-panel {
+      position: absolute; bottom: 10px; left: 10px; z-index: 2;
+      background: rgba(0,0,0,0.8); color: white; padding: 12px; border-radius: 6px;
+      max-width: 280px; font-size: 13px; display: none;
     }
-
-    #layer-menu label {
-      display: block;
-      cursor: pointer;
-      margin-bottom: 4px;
-    }
-
-    /* Attribution text style override (optional) */
-    .mapboxgl-ctrl-attrib {
-      font-size: 10px;
-    }
+    .mapboxgl-ctrl-attrib { font-size: 11px; }
   </style>
 </head>
-
 <body>
   <div id="map"></div>
 
-  <!-- Title + description -->
   <div id="title-bar">
-    <h1>Lab 4 – Map Design and Tile Generation</h1>
-    <p>
-      Four tile sets: custom basemap, thematic layer, combined layer, and a
-      themed design relevant to the project area.
-    </p>
+    <h1>Lab 4 – Seattle/UW Map Tiles</h1>
+    <p>Basemap + choropleth neighborhoods, parks, buildings. Layer switcher + hover info.</p>
   </div>
 
-  <!-- Layer switcher -->
   <div id="layer-menu">
-    <h2>Layers</h2>
-    <!-- All start ON; user can toggle visibility -->
-    <label>
-      <input type="checkbox" id="toggle-basemap" checked />
-      Basemap
-    </label>
-    <label>
-      <input type="checkbox" id="toggle-thematic" checked />
-      Thematic layer
-    </label>
-    <label>
-      <input type="checkbox" id="toggle-combined" checked />
-      Combined tiles
-    </label>
-    <label>
-      <input type="checkbox" id="toggle-theme" checked />
-      Themed layer
-    </label>
+    <strong>Layers</strong>
+    <label><input type="checkbox" id="toggle-basemap" checked> Basemap tiles</label>
+    <label><input type="checkbox" id="toggle-neighborhoods" checked> Neighborhoods (choropleth)</label>
+    <label><input type="checkbox" id="toggle-parks" checked> Parks (boundaries)</label>
+    <label><input type="checkbox" id="toggle-buildings" checked> UW Buildings</label>
+    <label><input type="checkbox" id="toggle-combined" checked> Combined tiles</label>
+    <label><input type="checkbox" id="toggle-theme" checked> Theme tiles</label>
+  </div>
+
+  <div id="info-panel">
+    <strong id="feature-name"></strong><br>
+    <span id="feature-info"></span>
   </div>
 
   <script>
-    // ------------------------------------------------------------
-    // 1. Map initialization
-    // ------------------------------------------------------------
-
-    mapboxgl.accessToken = 'YOUR_MAPBOX_ACCESS_TOKEN';
+    mapboxgl.accessToken = 'YOUR_MAPBOX_ACCESS_TOKEN';  // ← Replace!
 
     const map = new mapboxgl.Map({
       container: 'map',
-      // We’ll define a custom style object so we can host our own tiles
-      style: {
-        version: 8,
-        sources: {},
-        layers: []
-      },
-      center: [-122.3, 47.7], // Example: Seattle area; change to your AOI
-      zoom: 11,
-      minZoom: 8,
-      maxZoom: 17
+      style: { version: 8, sources: {}, layers: [] },
+      center: [-122.30, 47.66],  // Seattle/UW area
+      zoom: 13, minZoom: 10, maxZoom: 18
     });
 
-    // Add basic controls: zoom, rotation, scale bar, attribution is auto
-    map.addControl(new mapboxgl.NavigationControl(), 'top-left');
-    map.addControl(new mapboxgl.ScaleControl({ maxWidth: 150, unit: 'metric' }), 'bottom-left');
-
-    // ------------------------------------------------------------
-    // 2. When style loads, add all 4 tile sets
-    // ------------------------------------------------------------
+    // Controls
+    map.addControl(new mapboxgl.NavigationControl());
+    map.addControl(new mapboxgl.ScaleControl({ unit: 'metric' }));
 
     map.on('load', () => {
-      // 1) Basemap tiles (tile set 1)
+      // 1. Basemap tiles (raster - your generated tiles)
       map.addSource('basemap-tiles', {
         type: 'raster',
-        tiles: [
-          // Adjust path to your actual tiles; z/x/y.png pattern.
-          // Example if you host directly from GitHub Pages:
-          // 'https://your_github_username.github.io/your_repository_name/assets/basemap_tiles/{z}/{x}/{y}.png'
-          'assets/basemap_tiles/{z}/{x}/{y}.png'
-        ],
-        tileSize: 256,
-        attribution: 'Basemap tiles &copy; Your Name or Data Source'
+        tiles: ['assets/basemap_tiles/{z}/{x}/{y}.png'],
+        tileSize: 256
       });
+      map.addLayer({ id: 'basemap-layer', type: 'raster', source: 'basemap-tiles' });
 
+      // 2. Thematic: Neighborhoods choropleth (vector GeoJSON)
+      map.addSource('neighborhoods', {
+        type: 'geojson',
+        data: 'assets/2016_seattle_neighborhoods.geojson'
+      });
       map.addLayer({
-        id: 'basemap-layer',
-        type: 'raster',
-        source: 'basemap-tiles',
-        minzoom: 0,
-        maxzoom: 22
+        id: 'neighborhoods-layer',
+        type: 'fill',
+        source: 'neighborhoods',
+        paint: {
+          'fill-color': [
+            'interpolate', ['linear'], ['get', 'POPULATION'],  // ← Adjust field name if different (check your GeoJSON)
+            0, '#f7fbff',
+            20000, '#deebf7',
+            40000, '#c6dbef',
+            60000, '#9ecae1',
+            80000, '#6baed6',
+            100000, '#4292c6'
+          ],
+          'fill-opacity': 0.8,
+          'fill-outline-color': '#ccc'
+        }
       });
 
-      // 2) Thematic layer tiles (tile set 2)
-      map.addSource('thematic-tiles', {
-        type: 'raster',
-        tiles: [
-          'assets/thematic_tiles/{z}/{x}/{y}.png'
-        ],
-        tileSize: 256,
-        attribution: 'Thematic data &copy; Your Dataset Source'
+      // 2b. Parks boundaries (proportional symbols)
+      map.addSource('parks', {
+        type: 'geojson',
+        data: 'assets/Park_Boundaries_3221989587705057109.geojson'
       });
-
       map.addLayer({
-        id: 'thematic-layer',
-        type: 'raster',
-        source: 'thematic-tiles',
-        minzoom: 0,
-        maxzoom: 22
+        id: 'parks-layer',
+        type: 'line',
+        source: 'parks',
+        paint: {
+          'line-color': '#228B22',
+          'line-width': [
+            'interpolate', ['linear'], ['get', 'ACRES'],  // Adjust field if needed
+            0, 1,
+            50, 4
+          ]
+        }
       });
 
-      // 3) Combined tiles (basemap + thematic pre-rendered) (tile set 3)
+      // 2c. UW Buildings (markers/circles)
+      map.addSource('buildings', {
+        type: 'geojson',
+        data: 'assets/Buildings result.geojson'
+      });
+      map.addLayer({
+        id: 'buildings-layer',
+        type: 'circle',
+        source: 'buildings',
+        paint: {
+          'circle-radius': 4,
+          'circle-color': '#9932CC',  // UW purple
+          'circle-stroke-color': 'white',
+          'circle-stroke-width': 1.5
+        }
+      });
+
+      // 3. Combined tiles (raster)
       map.addSource('combined-tiles', {
         type: 'raster',
-        tiles: [
-          'assets/combined_tiles/{z}/{x}/{y}.png'
-        ],
-        tileSize: 256,
-        attribution: 'Combined tiles &copy; Your Name'
+        tiles: ['assets/combined_tiles/{z}/{x}/{y}.png'],
+        tileSize: 256
       });
+      map.addLayer({ id: 'combined-layer', type: 'raster', source: 'combined-tiles' });
 
-      map.addLayer({
-        id: 'combined-layer',
-        type: 'raster',
-        source: 'combined-tiles',
-        minzoom: 0,
-        maxzoom: 22
-      });
-
-      // 4) Themed layer tiles (tile set 4)
+      // 4. Theme tiles (raster - e.g., UW-themed)
       map.addSource('theme-tiles', {
         type: 'raster',
-        tiles: [
-          'assets/theme_tiles/{z}/{x}/{y}.png'
-        ],
-        tileSize: 256,
-        attribution: 'Themed design &copy; Your Name'
+        tiles: ['assets/theme_tiles/{z}/{x}/{y}.png'],
+        tileSize: 256
+      });
+      map.addLayer({ id: 'theme-layer', type: 'raster', source: 'theme-tiles' });
+
+      // Layer order (basemap bottom, theme top)
+      const layerOrder = ['basemap-layer', 'combined-layer', 'neighborhoods-layer', 'parks-layer', 'buildings-layer', 'theme-layer'];
+      layerOrder.forEach(id => map.moveLayer(id));
+
+      // INTERACTIVITY: Hover + click info (week04 style)
+      let hoveredFeatureId = null;
+      ['neighborhoods-layer', 'parks-layer', 'buildings-layer'].forEach(layerId => {
+        map.on('mouseenter', layerId, (e) => {
+          if (hoveredFeatureId) map.setFeatureState({ source: 'neighborhoods', id: hoveredFeatureId, sourceLayer: 'neighborhoods' }, { hover: false });
+          hoveredFeatureId = e.features[0].id;
+          map.setFeatureState({ source: 'neighborhoods', id: hoveredFeatureId }, { hover: true });
+          showInfo(e.features[0]);
+        });
+        map.on('mouseleave', layerId, () => {
+          if (hoveredFeatureId !== null) {
+            map.setFeatureState({ source: 'neighborhoods', id: hoveredFeatureId }, { hover: false });
+            hoveredFeatureId = null;
+          }
+          hideInfo();
+        });
+        map.on('click', layerId, (e) => showInfo(e.features[0]));
       });
 
-      map.addLayer({
-        id: 'theme-layer',
-        type: 'raster',
-        source: 'theme-tiles',
-        minzoom: 0,
-        maxzoom: 22
-      });
-
-      // ------------------------------------------------------------
-      // 3. Layer switcher logic (checkboxes)
-      // ------------------------------------------------------------
-
-      const basemapCheckbox   = document.getElementById('toggle-basemap');
-      const thematicCheckbox  = document.getElementById('toggle-thematic');
-      const combinedCheckbox  = document.getElementById('toggle-combined');
-      const themeCheckbox     = document.getElementById('toggle-theme');
-
-      function setLayerVisibility(layerId, visible) {
-        if (!map.getLayer(layerId)) return;
-        map.setLayoutProperty(
-          layerId,
-          'visibility',
-          visible ? 'visible' : 'none'
-        );
+      function showInfo(feature) {
+        document.getElementById('info-panel').style.display = 'block';
+        document.getElementById('feature-name').textContent = feature.properties.NAME || feature.properties.name || 'Feature';
+        document.getElementById('feature-info').textContent = 
+          Object.entries(feature.properties)
+            .filter(([k,v]) => !['NAME','name'].includes(k) && v)
+            .map(([k,v]) => `${k}: ${v}`).join(', ') || 'No details';
       }
+      function hideInfo() { document.getElementById('info-panel').style.display = 'none'; }
+    });
 
-      basemapCheckbox.addEventListener('change', () => {
-        setLayerVisibility('basemap-layer', basemapCheckbox.checked);
+    // Layer switcher checkboxes
+    document.querySelectorAll('#layer-menu input[type="checkbox"]').forEach(checkbox => {
+      checkbox.addEventListener('change', (e) => {
+        const layerId = e.target.id.replace('toggle-', '') + '-layer';
+        if (map.getLayer(layerId)) {
+          map.setLayoutProperty(layerId, 'visibility', e.target.checked ? 'visible' : 'none');
+        }
       });
-
-      thematicCheckbox.addEventListener('change', () => {
-        setLayerVisibility('thematic-layer', thematicCheckbox.checked);
-      });
-
-      combinedCheckbox.addEventListener('change', () => {
-        setLayerVisibility('combined-layer', combinedCheckbox.checked);
-      });
-
-      themeCheckbox.addEventListener('change', () => {
-        setLayerVisibility('theme-layer', themeCheckbox.checked);
-      });
-
-      // Optional: define a default stacking order so basemap is underneath.
-      map.moveLayer('basemap-layer');
-      map.moveLayer('combined-layer');
-      map.moveLayer('thematic-layer');
-      map.moveLayer('theme-layer');
     });
   </script>
 </body>
