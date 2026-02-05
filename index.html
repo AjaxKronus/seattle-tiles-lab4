@@ -1,199 +1,125 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Lab 4 – Map Design and Tile Generation (UW/Seattle)</title>
-  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <link href="https://api.mapbox.com/mapbox-gl-js/v3.18.1/mapbox-gl.css" rel="stylesheet" />
+  <meta charset="utf-8">
+  <title>Lab 4 – UW/Seattle Map Tiles</title>
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.18.1/mapbox-gl.css" rel="stylesheet">
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.18.1/mapbox-gl.js"></script>
   <style>
     body { margin: 0; padding: 0; font-family: system-ui, sans-serif; }
     #map { position: absolute; top: 0; bottom: 0; width: 100%; }
-    #title-bar {
-      position: absolute; top: 10px; left: 10px; z-index: 2;
-      background: rgba(255,255,255,0.95); padding: 10px; border-radius: 6px;
-      max-width: 300px; box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-    }
+    #title-bar { position: absolute; top: 10px; left: 10px; z-index: 2; background: rgba(255,255,255,0.95); padding: 12px; border-radius: 6px; max-width: 320px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
     #title-bar h1 { margin: 0 0 6px 0; font-size: 16px; }
     #title-bar p { margin: 0; font-size: 13px; line-height: 1.4; }
-    #layer-menu {
-      position: absolute; top: 10px; right: 10px; z-index: 2;
-      background: rgba(255,255,255,0.95); padding: 10px; border-radius: 6px;
-      font-size: 13px; box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-    }
-    #layer-menu label { display: block; cursor: pointer; margin-bottom: 6px; }
-    /* Info panel for hover/click */
-    #info-panel {
-      position: absolute; bottom: 10px; left: 10px; z-index: 2;
-      background: rgba(0,0,0,0.8); color: white; padding: 12px; border-radius: 6px;
-      max-width: 280px; font-size: 13px; display: none;
-    }
-    .mapboxgl-ctrl-attrib { font-size: 11px; }
+    #layer-menu { position: absolute; top: 10px; right: 10px; z-index: 2; background: rgba(255,255,255,0.95); padding: 12px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+    #layer-menu label { display: block; cursor: pointer; margin-bottom: 8px; font-size: 13px; }
+    #info-panel { position: absolute; bottom: 10px; left: 10px; z-index: 2; background: rgba(0,0,0,0.85); color: white; padding: 14px; border-radius: 6px; max-width: 300px; font-size: 13px; display: none; }
   </style>
 </head>
 <body>
   <div id="map"></div>
-
   <div id="title-bar">
-    <h1>Lab 4 – Seattle/UW Map Tiles</h1>
-    <p>Basemap + choropleth neighborhoods, parks, buildings. Layer switcher + hover info.</p>
+    <h1>Lab 4 – Seattle/UW Thematic Map</h1>
+    <p>4 tile sets: monochrome basemap, neighborhoods choropleth, parks/buildings, UW theme. Hover/click for info.</p>
   </div>
-
   <div id="layer-menu">
     <strong>Layers</strong>
-    <label><input type="checkbox" id="toggle-basemap" checked> Basemap tiles</label>
-    <label><input type="checkbox" id="toggle-neighborhoods" checked> Neighborhoods (choropleth)</label>
-    <label><input type="checkbox" id="toggle-parks" checked> Parks (boundaries)</label>
+    <label><input type="checkbox" id="toggle-basemap" checked> 1. Basemap (Monochrome)</label>
+    <label><input type="checkbox" id="toggle-neighborhoods" checked> 2. Neighborhoods</label>
+    <label><input type="checkbox" id="toggle-parks" checked> Parks</label>
     <label><input type="checkbox" id="toggle-buildings" checked> UW Buildings</label>
-    <label><input type="checkbox" id="toggle-combined" checked> Combined tiles</label>
-    <label><input type="checkbox" id="toggle-theme" checked> Theme tiles</label>
+    <label><input type="checkbox" id="toggle-theme" checked> 4. UW Theme (3D)</label>
   </div>
-
   <div id="info-panel">
     <strong id="feature-name"></strong><br>
     <span id="feature-info"></span>
   </div>
 
   <script>
-    mapboxgl.accessToken = 'YOUR_MAPBOX_ACCESS_TOKEN';  // ← Replace!
+    mapboxgl.accessToken = 'NEW_TOKEN_HERE';  // ← Paste your NEW token!
 
     const map = new mapboxgl.Map({
       container: 'map',
-      style: { version: 8, sources: {}, layers: [] },
-      center: [-122.30, 47.66],  // Seattle/UW area
-      zoom: 13, minZoom: 10, maxZoom: 18
+      style: 'mapbox://styles/mapbox/light-v11',
+      center: [-122.305, 47.655],
+      zoom: 14, minZoom: 11, maxZoom: 18
     });
 
-    // Controls
     map.addControl(new mapboxgl.NavigationControl());
     map.addControl(new mapboxgl.ScaleControl({ unit: 'metric' }));
 
     map.on('load', () => {
-      // 1. Basemap tiles (raster - your generated tiles)
-      map.addSource('basemap-tiles', {
-        type: 'raster',
-        tiles: ['assets/basemap_tiles/{z}/{x}/{y}.png'],
-        tileSize: 256
-      });
-      map.addLayer({ id: 'basemap-layer', type: 'raster', source: 'basemap-tiles' });
+      // TILE SET 1: Custom monochrome basemap
+      map.setPaintProperty('water', 'fill-color', '#e9f2ff');
+      map.setPaintProperty('road-fill-primary', 'fill-color', '#e0e0e0');
+      map.setPaintProperty('road-label', 'text-font', ['Open Sans Regular', 'Arial Unicode MS Regular']);
 
-      // 2. Thematic: Neighborhoods choropleth (vector GeoJSON)
-      map.addSource('neighborhoods', {
-        type: 'geojson',
-        data: 'assets/2016_seattle_neighborhoods.geojson'
-      });
+      // TILE SET 2: Thematic GeoJSON
+      map.addSource('neighborhoods', { type: 'geojson', data: 'assets/2016_seattle_neighborhoods.geojson' });
       map.addLayer({
         id: 'neighborhoods-layer',
         type: 'fill',
         source: 'neighborhoods',
         paint: {
-          'fill-color': [
-            'interpolate', ['linear'], ['get', 'POPULATION'],  // ← Adjust field name if different (check your GeoJSON)
-            0, '#f7fbff',
-            20000, '#deebf7',
-            40000, '#c6dbef',
-            60000, '#9ecae1',
-            80000, '#6baed6',
-            100000, '#4292c6'
-          ],
-          'fill-opacity': 0.8,
-          'fill-outline-color': '#ccc'
+          'fill-color': ['interpolate', ['linear'], ['get', 'POPULATION'] || ['get', 'pop'] || 0, 0, '#f7fbff', 50000, '#08519c'],
+          'fill-opacity': 0.7,
+          'fill-outline-color': '#bdc3c7'
         }
       });
 
-      // 2b. Parks boundaries (proportional symbols)
-      map.addSource('parks', {
-        type: 'geojson',
-        data: 'assets/Park_Boundaries_3221989587705057109.geojson'
-      });
+      map.addSource('parks', { type: 'geojson', data: 'assets/Park_Boundaries_3221989587705057109.geojson' });
       map.addLayer({
         id: 'parks-layer',
         type: 'line',
         source: 'parks',
-        paint: {
-          'line-color': '#228B22',
-          'line-width': [
-            'interpolate', ['linear'], ['get', 'ACRES'],  // Adjust field if needed
-            0, 1,
-            50, 4
-          ]
-        }
+        paint: { 'line-color': '#27ae60', 'line-width': 3 }
       });
 
-      // 2c. UW Buildings (markers/circles)
-      map.addSource('buildings', {
-        type: 'geojson',
-        data: 'assets/Buildings result.geojson'
-      });
+      map.addSource('buildings', { type: 'geojson', data: 'assets/Buildings result.geojson' });
       map.addLayer({
         id: 'buildings-layer',
         type: 'circle',
         source: 'buildings',
+        paint: { 'circle-radius': 5, 'circle-color': '#8e44ad', 'circle-stroke-color': 'white', 'circle-stroke-width': 2 }
+      });
+
+      // TILE SET 4: UW Theme (3D buildings)
+      map.addLayer({
+        id: 'theme-layer',
+        type: 'fill-extrusion',
+        source: 'buildings',
         paint: {
-          'circle-radius': 4,
-          'circle-color': '#9932CC',  // UW purple
-          'circle-stroke-color': 'white',
-          'circle-stroke-width': 1.5
+          'fill-extrusion-color': '#8e44ad',
+          'fill-extrusion-height': ['get', 'HEIGHT'] || 20,
+          'fill-extrusion-base': 0,
+          'fill-extrusion-opacity': 0.9
         }
       });
 
-      // 3. Combined tiles (raster)
-      map.addSource('combined-tiles', {
-        type: 'raster',
-        tiles: ['assets/combined_tiles/{z}/{x}/{y}.png'],
-        tileSize: 256
-      });
-      map.addLayer({ id: 'combined-layer', type: 'raster', source: 'combined-tiles' });
+      // Layer order
+      ['neighborhoods-layer', 'parks-layer', 'buildings-layer', 'theme-layer'].forEach(id => map.moveLayer(id));
 
-      // 4. Theme tiles (raster - e.g., UW-themed)
-      map.addSource('theme-tiles', {
-        type: 'raster',
-        tiles: ['assets/theme_tiles/{z}/{x}/{y}.png'],
-        tileSize: 256
-      });
-      map.addLayer({ id: 'theme-layer', type: 'raster', source: 'theme-tiles' });
-
-      // Layer order (basemap bottom, theme top)
-      const layerOrder = ['basemap-layer', 'combined-layer', 'neighborhoods-layer', 'parks-layer', 'buildings-layer', 'theme-layer'];
-      layerOrder.forEach(id => map.moveLayer(id));
-
-      // INTERACTIVITY: Hover + click info (week04 style)
-      let hoveredFeatureId = null;
-      ['neighborhoods-layer', 'parks-layer', 'buildings-layer'].forEach(layerId => {
-        map.on('mouseenter', layerId, (e) => {
-          if (hoveredFeatureId) map.setFeatureState({ source: 'neighborhoods', id: hoveredFeatureId, sourceLayer: 'neighborhoods' }, { hover: false });
-          hoveredFeatureId = e.features[0].id;
-          map.setFeatureState({ source: 'neighborhoods', id: hoveredFeatureId }, { hover: true });
-          showInfo(e.features[0]);
-        });
-        map.on('mouseleave', layerId, () => {
-          if (hoveredFeatureId !== null) {
-            map.setFeatureState({ source: 'neighborhoods', id: hoveredFeatureId }, { hover: false });
-            hoveredFeatureId = null;
-          }
-          hideInfo();
-        });
+      // Hover/click info
+      const layers = ['neighborhoods-layer', 'parks-layer', 'buildings-layer'];
+      layers.forEach(layerId => {
+        map.on('mouseenter', layerId, (e) => showInfo(e.features[0]));
         map.on('click', layerId, (e) => showInfo(e.features[0]));
       });
-
-      function showInfo(feature) {
-        document.getElementById('info-panel').style.display = 'block';
-        document.getElementById('feature-name').textContent = feature.properties.NAME || feature.properties.name || 'Feature';
-        document.getElementById('feature-info').textContent = 
-          Object.entries(feature.properties)
-            .filter(([k,v]) => !['NAME','name'].includes(k) && v)
-            .map(([k,v]) => `${k}: ${v}`).join(', ') || 'No details';
-      }
-      function hideInfo() { document.getElementById('info-panel').style.display = 'none'; }
     });
 
-    // Layer switcher checkboxes
-    document.querySelectorAll('#layer-menu input[type="checkbox"]').forEach(checkbox => {
-      checkbox.addEventListener('change', (e) => {
+    function showInfo(feature) {
+      document.getElementById('info-panel').style.display = 'block';
+      document.getElementById('feature-name').textContent = feature.properties.NAME || feature.properties.name || 'Feature';
+      document.getElementById('feature-info').textContent = 
+        Object.entries(feature.properties).slice(0,4).map(([k,v]) => `${k}: ${v}`).join(', ');
+    }
+
+    // Layer switcher
+    document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.addEventListener('change', (e) => {
         const layerId = e.target.id.replace('toggle-', '') + '-layer';
-        if (map.getLayer(layerId)) {
-          map.setLayoutProperty(layerId, 'visibility', e.target.checked ? 'visible' : 'none');
-        }
+        if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', e.target.checked ? 'visible' : 'none');
       });
     });
   </script>
