@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Lab 4 – Map Design and Tile Generation</title>
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+
+  <!-- Mapbox GL JS CSS -->
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.18.1/mapbox-gl.css" rel="stylesheet" />
+
+  <!-- Mapbox GL JS -->
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.18.1/mapbox-gl.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    /* Full screen map */
+    #map {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 100%;
+    }
+
+    /* Title and description overlay */
+    #title-bar {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 2;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 13px;
+      max-width: 320px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    }
+
+    #title-bar h1 {
+      margin: 0 0 4px 0;
+      font-size: 15px;
+    }
+
+    #title-bar p {
+      margin: 0;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    /* Layer switcher */
+    #layer-menu {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 2;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 8px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    }
+
+    #layer-menu h2 {
+      margin: 0 0 6px 0;
+      font-size: 13px;
+    }
+
+    #layer-menu label {
+      display: block;
+      cursor: pointer;
+      margin-bottom: 4px;
+    }
+
+    /* Attribution text style override (optional) */
+    .mapboxgl-ctrl-attrib {
+      font-size: 10px;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="map"></div>
+
+  <!-- Title + description -->
+  <div id="title-bar">
+    <h1>Lab 4 – Map Design and Tile Generation</h1>
+    <p>
+      Four tile sets: custom basemap, thematic layer, combined layer, and a
+      themed design relevant to the project area.
+    </p>
+  </div>
+
+  <!-- Layer switcher -->
+  <div id="layer-menu">
+    <h2>Layers</h2>
+    <!-- All start ON; user can toggle visibility -->
+    <label>
+      <input type="checkbox" id="toggle-basemap" checked />
+      Basemap
+    </label>
+    <label>
+      <input type="checkbox" id="toggle-thematic" checked />
+      Thematic layer
+    </label>
+    <label>
+      <input type="checkbox" id="toggle-combined" checked />
+      Combined tiles
+    </label>
+    <label>
+      <input type="checkbox" id="toggle-theme" checked />
+      Themed layer
+    </label>
+  </div>
+
+  <script>
+    // ------------------------------------------------------------
+    // 1. Map initialization
+    // ------------------------------------------------------------
+
+    mapboxgl.accessToken = 'YOUR_MAPBOX_ACCESS_TOKEN';
+
+    const map = new mapboxgl.Map({
+      container: 'map',
+      // We’ll define a custom style object so we can host our own tiles
+      style: {
+        version: 8,
+        sources: {},
+        layers: []
+      },
+      center: [-122.3, 47.7], // Example: Seattle area; change to your AOI
+      zoom: 11,
+      minZoom: 8,
+      maxZoom: 17
+    });
+
+    // Add basic controls: zoom, rotation, scale bar, attribution is auto
+    map.addControl(new mapboxgl.NavigationControl(), 'top-left');
+    map.addControl(new mapboxgl.ScaleControl({ maxWidth: 150, unit: 'metric' }), 'bottom-left');
+
+    // ------------------------------------------------------------
+    // 2. When style loads, add all 4 tile sets
+    // ------------------------------------------------------------
+
+    map.on('load', () => {
+      // 1) Basemap tiles (tile set 1)
+      map.addSource('basemap-tiles', {
+        type: 'raster',
+        tiles: [
+          // Adjust path to your actual tiles; z/x/y.png pattern.
+          // Example if you host directly from GitHub Pages:
+          // 'https://your_github_username.github.io/your_repository_name/assets/basemap_tiles/{z}/{x}/{y}.png'
+          'assets/basemap_tiles/{z}/{x}/{y}.png'
+        ],
+        tileSize: 256,
+        attribution: 'Basemap tiles &copy; Your Name or Data Source'
+      });
+
+      map.addLayer({
+        id: 'basemap-layer',
+        type: 'raster',
+        source: 'basemap-tiles',
+        minzoom: 0,
+        maxzoom: 22
+      });
+
+      // 2) Thematic layer tiles (tile set 2)
+      map.addSource('thematic-tiles', {
+        type: 'raster',
+        tiles: [
+          'assets/thematic_tiles/{z}/{x}/{y}.png'
+        ],
+        tileSize: 256,
+        attribution: 'Thematic data &copy; Your Dataset Source'
+      });
+
+      map.addLayer({
+        id: 'thematic-layer',
+        type: 'raster',
+        source: 'thematic-tiles',
+        minzoom: 0,
+        maxzoom: 22
+      });
+
+      // 3) Combined tiles (basemap + thematic pre-rendered) (tile set 3)
+      map.addSource('combined-tiles', {
+        type: 'raster',
+        tiles: [
+          'assets/combined_tiles/{z}/{x}/{y}.png'
+        ],
+        tileSize: 256,
+        attribution: 'Combined tiles &copy; Your Name'
+      });
+
+      map.addLayer({
+        id: 'combined-layer',
+        type: 'raster',
+        source: 'combined-tiles',
+        minzoom: 0,
+        maxzoom: 22
+      });
+
+      // 4) Themed layer tiles (tile set 4)
+      map.addSource('theme-tiles', {
+        type: 'raster',
+        tiles: [
+          'assets/theme_tiles/{z}/{x}/{y}.png'
+        ],
+        tileSize: 256,
+        attribution: 'Themed design &copy; Your Name'
+      });
+
+      map.addLayer({
+        id: 'theme-layer',
+        type: 'raster',
+        source: 'theme-tiles',
+        minzoom: 0,
+        maxzoom: 22
+      });
+
+      // ------------------------------------------------------------
+      // 3. Layer switcher logic (checkboxes)
+      // ------------------------------------------------------------
+
+      const basemapCheckbox   = document.getElementById('toggle-basemap');
+      const thematicCheckbox  = document.getElementById('toggle-thematic');
+      const combinedCheckbox  = document.getElementById('toggle-combined');
+      const themeCheckbox     = document.getElementById('toggle-theme');
+
+      function setLayerVisibility(layerId, visible) {
+        if (!map.getLayer(layerId)) return;
+        map.setLayoutProperty(
+          layerId,
+          'visibility',
+          visible ? 'visible' : 'none'
+        );
+      }
+
+      basemapCheckbox.addEventListener('change', () => {
+        setLayerVisibility('basemap-layer', basemapCheckbox.checked);
+      });
+
+      thematicCheckbox.addEventListener('change', () => {
+        setLayerVisibility('thematic-layer', thematicCheckbox.checked);
+      });
+
+      combinedCheckbox.addEventListener('change', () => {
+        setLayerVisibility('combined-layer', combinedCheckbox.checked);
+      });
+
+      themeCheckbox.addEventListener('change', () => {
+        setLayerVisibility('theme-layer', themeCheckbox.checked);
+      });
+
+      // Optional: define a default stacking order so basemap is underneath.
+      map.moveLayer('basemap-layer');
+      map.moveLayer('combined-layer');
+      map.moveLayer('thematic-layer');
+      map.moveLayer('theme-layer');
+    });
+  </script>
+</body>
+</html>
